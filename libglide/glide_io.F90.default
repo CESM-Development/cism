@@ -1,6 +1,6 @@
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! WARNING: this file was automatically generated on
-! Tue, 30 Jun 2015 18:16:37 +0000
+! Thu, 20 Aug 2015 16:06:27 +0000
 ! from ncdf_template.F90.in
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -740,7 +740,7 @@ contains
       NCO%vars(pos+1:pos+7) = '       '
     end if
     if (pos.ne.0 .and. status.eq.nf90_enotvar) then
-    if (is_enabled(data%climate%calving)) then
+    if (is_enabled(data%calving%calving_thck)) then
        call write_log('Creating variable calving')
        status = parallel_def_var(NCO%id,'calving',get_xtype(outfile,NF90_FLOAT),(/x1_dimid, y1_dimid, time_dimid/),varid)
        call nc_errorhandle(__FILE__,__LINE__,status)
@@ -753,6 +753,50 @@ contains
        end if
      else
      call write_log('Variable calving was specified for output but it is inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     end if
+     end if
+
+    !     damage -- ice damage
+    pos = index(NCO%vars,' damage ')
+    status = parallel_inq_varid(NCO%id,'damage',varid)
+    if (pos.ne.0) then
+      NCO%vars(pos+1:pos+6) = '      '
+    end if
+    if (pos.ne.0 .and. status.eq.nf90_enotvar) then
+    if (is_enabled(data%calving%damage)) then
+       call write_log('Creating variable damage')
+       status = parallel_def_var(NCO%id,'damage',get_xtype(outfile,NF90_FLOAT),(/x1_dimid, y1_dimid, staglevel_dimid, time_dimid/),varid)
+       call nc_errorhandle(__FILE__,__LINE__,status)
+       status = parallel_put_att(NCO%id, varid, 'long_name', 'ice damage')
+       status = parallel_put_att(NCO%id, varid, 'units', 'unitless [0,1]')
+       if (glimmap_allocated(model%projection)) then
+          status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
+          status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
+       end if
+     else
+     call write_log('Variable damage was specified for output but it is inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     end if
+     end if
+
+    !     damage_column -- vertically integrated ice damage
+    pos = index(NCO%vars,' damage_column ')
+    status = parallel_inq_varid(NCO%id,'damage_column',varid)
+    if (pos.ne.0) then
+      NCO%vars(pos+1:pos+13) = '             '
+    end if
+    if (pos.ne.0 .and. status.eq.nf90_enotvar) then
+    if (is_enabled(data%calving%damage_column)) then
+       call write_log('Creating variable damage_column')
+       status = parallel_def_var(NCO%id,'damage_column',get_xtype(outfile,NF90_FLOAT),(/x1_dimid, y1_dimid, time_dimid/),varid)
+       call nc_errorhandle(__FILE__,__LINE__,status)
+       status = parallel_put_att(NCO%id, varid, 'long_name', 'vertically integrated ice damage')
+       status = parallel_put_att(NCO%id, varid, 'units', 'unitless [0,1]')
+       if (glimmap_allocated(model%projection)) then
+          status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
+          status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
+       end if
+     else
+     call write_log('Variable damage_column was specified for output but it is inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -1179,6 +1223,30 @@ contains
        end if
      else
      call write_log('Variable iareag was specified for output but it is inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
+     end if
+     end if
+
+    !     ice_age -- ice age
+    pos = index(NCO%vars,' ice_age ')
+    status = parallel_inq_varid(NCO%id,'ice_age',varid)
+    if (pos.ne.0) then
+      NCO%vars(pos+1:pos+7) = '       '
+    end if
+    if (pos.ne.0 .and. status.eq.nf90_enotvar) then
+    if (is_enabled(data%geometry%ice_age)) then
+       call write_log('Creating variable ice_age')
+       status = parallel_def_var(NCO%id,'ice_age',get_xtype(outfile,NF90_FLOAT),(/x1_dimid, y1_dimid, staglevel_dimid, time_dimid/),varid)
+       call nc_errorhandle(__FILE__,__LINE__,status)
+       status = parallel_put_att(NCO%id, varid, 'scale_factor',(tim0/scyr))
+       status = parallel_put_att(NCO%id, varid, 'long_name', 'ice age')
+       status = parallel_put_att(NCO%id, varid, 'standard_name', 'land_ice_age')
+       status = parallel_put_att(NCO%id, varid, 'units', 'year')
+       if (glimmap_allocated(model%projection)) then
+          status = parallel_put_att(NCO%id, varid, 'grid_mapping',glimmer_nc_mapvarname)
+          status = parallel_put_att(NCO%id, varid, 'coordinates', 'lon lat')
+       end if
+     else
+     call write_log('Variable ice_age was specified for output but it is inappropriate for your config settings.  It will be excluded from the output.', GM_WARNING)
      end if
      end if
 
@@ -2521,7 +2589,23 @@ contains
     status = parallel_inq_varid(NCO%id,'calving',varid)
     if (status .eq. nf90_noerr) then
        status = distributed_put_var(NCO%id, varid, &
-            data%climate%calving, (/1,1,outfile%timecounter/))
+            data%calving%calving_thck, (/1,1,outfile%timecounter/))
+       call nc_errorhandle(__FILE__,__LINE__,status)
+    end if
+
+    status = parallel_inq_varid(NCO%id,'damage',varid)
+    if (status .eq. nf90_noerr) then
+       do up=1,NCO%nstaglevel
+          status = distributed_put_var(NCO%id, varid, &
+               data%calving%damage(up,:,:), (/1,1,up,outfile%timecounter/))
+          call nc_errorhandle(__FILE__,__LINE__,status)
+       end do
+    end if
+
+    status = parallel_inq_varid(NCO%id,'damage_column',varid)
+    if (status .eq. nf90_noerr) then
+       status = distributed_put_var(NCO%id, varid, &
+            data%calving%damage_column, (/1,1,outfile%timecounter/))
        call nc_errorhandle(__FILE__,__LINE__,status)
     end if
 
@@ -2668,6 +2752,15 @@ contains
        status = distributed_put_var(NCO%id, varid, &
             data%geometry%iareag, (/outfile%timecounter/))
        call nc_errorhandle(__FILE__,__LINE__,status)
+    end if
+
+    status = parallel_inq_varid(NCO%id,'ice_age',varid)
+    if (status .eq. nf90_noerr) then
+       do up=1,NCO%nstaglevel
+          status = distributed_put_var(NCO%id, varid, &
+               data%geometry%ice_age(up,:,:), (/1,1,up,outfile%timecounter/))
+          call nc_errorhandle(__FILE__,__LINE__,status)
+       end do
     end if
 
     status = parallel_inq_varid(NCO%id,'ice_mask',varid)
@@ -3615,6 +3708,29 @@ contains
 
     end if
 
+    status = parallel_inq_varid(NCI%id,'damage',varid)
+    if (status .eq. nf90_noerr) then
+    if (is_enabled(data%calving%damage)) then
+       call write_log('  Loading damage')
+       do up=1,NCI%nstaglevel
+          status = distributed_get_var(NCI%id, varid, &
+               data%calving%damage(up,:,:), (/1,1,up,infile%current_time/))
+          call nc_errorhandle(__FILE__,__LINE__,status)
+          status = parallel_get_att(NCI%id, varid,'scale_factor',scaling_factor)
+          if (status.ne.NF90_NOERR) then
+             scaling_factor = 1.0d0
+          end if
+          if (abs(scaling_factor-1.0d0).gt.1.d-17) then
+             call write_log("scaling damage",GM_DIAGNOSTIC)
+             data%calving%damage(up,:,:) = data%calving%damage(up,:,:)*scaling_factor
+          end if
+       end do
+    else
+    call write_log('Variable damage was specified for input but it is inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
+    end if
+
+    end if
+
     status = parallel_inq_varid(NCI%id,'dissip',varid)
     if (status .eq. nf90_noerr) then
     if (is_enabled(data%temper%dissip)) then
@@ -3757,6 +3873,31 @@ contains
        end do
     else
     call write_log('Variable flwastag was specified for input but it is inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
+    end if
+
+    end if
+
+    status = parallel_inq_varid(NCI%id,'ice_age',varid)
+    if (status .eq. nf90_noerr) then
+    if (is_enabled(data%geometry%ice_age)) then
+       call write_log('  Loading ice_age')
+       do up=1,NCI%nstaglevel
+          status = distributed_get_var(NCI%id, varid, &
+               data%geometry%ice_age(up,:,:), (/1,1,up,infile%current_time/))
+          call nc_errorhandle(__FILE__,__LINE__,status)
+          status = parallel_get_att(NCI%id, varid,'scale_factor',scaling_factor)
+          if (status.ne.NF90_NOERR) then
+             scaling_factor = 1.0d0/(tim0/scyr)
+          else
+             scaling_factor = scaling_factor/(tim0/scyr)
+          end if
+          if (abs(scaling_factor-1.0d0).gt.1.d-17) then
+             call write_log("scaling ice_age",GM_DIAGNOSTIC)
+             data%geometry%ice_age(up,:,:) = data%geometry%ice_age(up,:,:)*scaling_factor
+          end if
+       end do
+    else
+    call write_log('Variable ice_age was specified for input but it is inappropriate for your config settings.  It will be excluded from the input.', GM_WARNING)
     end if
 
     end if
@@ -4943,7 +5084,7 @@ contains
     type(glide_global_type) :: data
     real(dp), dimension(:,:), intent(out) :: outarray
 
-    outarray = (thk0)*(data%climate%calving)
+    outarray = (thk0)*(data%calving%calving_thck)
   end subroutine glide_get_calving
 
   subroutine glide_set_calving(data,inarray)
@@ -4954,8 +5095,30 @@ contains
     type(glide_global_type) :: data
     real(dp), dimension(:,:), intent(in) :: inarray
 
-    data%climate%calving = inarray/(thk0)
+    data%calving%calving_thck = inarray/(thk0)
   end subroutine glide_set_calving
+
+  subroutine glide_get_damage_column(data,outarray)
+    use glimmer_scales
+    use glimmer_paramets
+    use glide_types
+    implicit none
+    type(glide_global_type) :: data
+    real(dp), dimension(:,:), intent(out) :: outarray
+
+    outarray = data%calving%damage_column
+  end subroutine glide_get_damage_column
+
+  subroutine glide_set_damage_column(data,inarray)
+    use glimmer_scales
+    use glimmer_paramets
+    use glide_types
+    implicit none
+    type(glide_global_type) :: data
+    real(dp), dimension(:,:), intent(in) :: inarray
+
+    data%calving%damage_column = inarray
+  end subroutine glide_set_damage_column
 
   subroutine glide_get_diff_cfl_dt(data,outarray)
     use glimmer_scales
