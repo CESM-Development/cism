@@ -238,9 +238,16 @@ module glide_types
   integer, parameter :: HO_ASSEMBLE_TAUD_STANDARD = 0
   integer, parameter :: HO_ASSEMBLE_TAUD_LOCAL = 1
 
+  integer, parameter :: HO_ASSEMBLE_BFRIC_STANDARD = 0
+  integer, parameter :: HO_ASSEMBLE_BFRIC_LOCAL = 1
+
   integer, parameter :: HO_GROUND_NO_GLP = 0
   integer, parameter :: HO_GROUND_GLP = 1
   integer, parameter :: HO_GROUND_ALL = 2
+
+  integer, parameter :: HO_FLOTATION_FUNCTION_PATTYN = 0
+  integer, parameter :: HO_FLOTATION_FUNCTION_INVERSE_PATTYN = 1
+  integer, parameter :: HO_FLOTATION_FUNCTION_OCEAN_CAVITY = 2
 
   integer, parameter :: HO_ICE_AGE_NONE = 0 
   integer, parameter :: HO_ICE_AGE_COMPUTE = 1 
@@ -611,13 +618,29 @@ module glide_types
     !> \item[0] standard finite-element calculation (which effectively smooths the driving stress)
     !> \item[1] apply local value of driving stress at each vertex
 
-    integer :: which_ho_ground = 0    
+    integer :: which_ho_assemble_bfric = 0
+
+    !> Flag that describes how the basal friction heat flux is computed in the glissade finite-element calculation
+    !> \begin{description}
+    !> \item[0] standard finite-element calculation summing over quadrature points
+    !> \item[1] apply local value of beta*(u^2 + v^2) at each vertex
+
+    integer :: which_ho_ground = 0
     !> Flag that indicates how to compute the grounded fraction of each gridcell in the glissade dycore.
     !> Not valid for other dycores
     !> \begin{description}
     !> \item[0] fground = 0 in floating cells (based on flotation condition), else fground = 1 
     !> \item[1] 0 <= fground <= 1, based on a grounding line parameterization
     !> \item[2] fground = 1 in all cells
+
+    integer :: which_ho_flotation_function = 1
+    !> Flag that indicates how to compute the flotation function at and near vertices in the glissade dycore
+    !> Not valid for other dycores
+    !> \begin{description}
+    !> \item[0] f_flotation = (-rhow*b/rhoi*H) = f_pattyn; <=1 for grounded, > 1 for floating
+    !> \item[1] f_flotation = (rhoi*H)/(-rhow*b) = 1/f_pattyn; >=1 for grounded, < 1 for floating
+    !> \item[2] f_flotation = -rhow*b - rhoi*H = ocean cavity thickness; <=0 for grounded, > 0 for floating 
+    !TODO - Consider changing the default after further testing (currently 1/f_pattyn)
 
     integer :: which_ho_ice_age = 1    
     !> Flag that indicates whether to compute a 3d ice age tracer
@@ -664,8 +687,9 @@ module glide_types
     real(dp),dimension(:,:),pointer :: topg => null() 
     !> The elevation of the topography, divided by \texttt{thk0}.
 
-    real(dp),dimension(:,:),pointer :: f_pattyn=> null() 
-    !> Pattyn flotation function, rhoo*(topg-eus)/(rhoi*thck)
+    real(dp),dimension(:,:),pointer :: f_flotation => null() 
+    !> flotation function, (rhoi*thck) / (-rhoo*(topg-eus))
+    !> previously was f_pattyn = -rhoo*(topg-eus)/(rhoi*thck)
     !    (computed by glissade dycore only)
 
     real(dp),dimension(:,:),pointer :: f_ground => null() 
@@ -897,7 +921,7 @@ module glide_types
                                             !> WHL - previously defined as the fraction of floating ice that does not calve
      real(dp) :: calving_timescale = 0.0d0  !> time scale (yr) for calving (Glissade only); calving_thck = thck * max(dt/calving_timescale, 1)
                                             !> if calving_timescale = 0, then calving_thck = thck
-     real(dp) :: calving_minthck = 100.d0   !> min thickness (m) of ice at marine edge before it calves
+     real(dp) :: calving_minthck = 100.d0   !> minimum thickness (m) of floating ice at marine edge before it calves
                                             !> (whichcalving = CALVING_THCK_THRESHOLD)
      real(dp) :: damage_threshold = 1.0d0   !> threshold at which ice column is deemed sufficiently damaged to calve
                                             !> assuming that 0 = no damage, 1 = total damage
@@ -1448,7 +1472,7 @@ contains
     !> \item \texttt{mask(ewn,nsn))}
     !> \item \texttt{age(upn-1,ewn,nsn))}
     !> \item \texttt{tracers(ewn,nsn,ntracers,upn-1)}
-    !> \item \texttt{f_pattyn(ewn,nsn)}
+    !> \item \texttt{f_flotation(ewn,nsn)}
     !> \item \texttt{f_ground(ewn-1,nsn-1)}
     !* (DFM) added floating_mask, ice_mask, lower_cell_loc, and lower_cell_temp
     !> \item \texttt{floating_mask(ewn,nsn))}
@@ -1661,7 +1685,7 @@ contains
        call coordsystem_allocate(model%general%ice_grid, model%thckwk%oldthck2)
     else   ! glam/glissade dycore
        call coordsystem_allocate(model%general%ice_grid, upn-1, model%geometry%ice_age)
-       call coordsystem_allocate(model%general%ice_grid,  model%geometry%f_pattyn)
+       call coordsystem_allocate(model%general%ice_grid,  model%geometry%f_flotation)
        call coordsystem_allocate(model%general%velo_grid, model%geometry%f_ground)
        call coordsystem_allocate(model%general%velo_grid, model%geomderv%dlsrfdew)
        call coordsystem_allocate(model%general%velo_grid, model%geomderv%dlsrfdns)
@@ -2005,8 +2029,8 @@ contains
         deallocate(model%geometry%ice_age)
     if (associated(model%geometry%tracers)) &
         deallocate(model%geometry%tracers)
-    if (associated(model%geometry%f_pattyn)) &
-        deallocate(model%geometry%f_pattyn)
+    if (associated(model%geometry%f_flotation)) &
+        deallocate(model%geometry%f_flotation)
     if (associated(model%geometry%f_ground)) &
         deallocate(model%geometry%f_ground)
     if (associated(model%geomderv%dlsrfdew)) &
